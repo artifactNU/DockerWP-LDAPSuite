@@ -1,0 +1,22 @@
+dn: ou=groups,dc=example,dc=com
+objectclass: organizationalUnit
+objectclass: top
+ou: groups
+
+ou=users,dc=home,dc=example,dc=com
+dn: ou=users,ou=groups,dc=example,dc=com
+objectclass: organizationalUnit
+objectclass: top
+ou: users
+
+dn: cn=John Doe,ou=users,groups=,dc=example,dc=com
+mail: john.doe@example.com
+cn: John Doe
+sn: Doe
+givenName: John
+mail: john.doe@example.com
+userPassword: password
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson

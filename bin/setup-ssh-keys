@@ -1,0 +1,56 @@
+#!/bin/bash
+
+set -eu
+set -o pipefail
+
+readonly script_path="$(realpath "$0")"
+readonly script_name="$(basename "${script_path}")"
+readonly script_dir="$(dirname "${script_path}")"
+readonly env_file=${script_dir}/../.env
+
+source "${env_file}"
+
+prompt_msg=$(cat <<-END
+	============================================================
+	INFO
+	============================================================
+	Please specify a backup server by ip address.
+
+	------------------------------------------------------------
+	ip address:
+END
+)
+read -p "$prompt_msg " server_ip
+
+# update the .env file that holds the backupserver
+if [[ ${BACKUP_SERVER} != "${server_ip}" ]]; then
+    sed -i "s/^BACKUP_SERVER=.*/BACKUP_SERVER=${server_ip}/" "${env_file}"
+    source "${env_file}"
+fi
+
+# define ssh variables
+custom_ssh_dir=${script_dir}/../cfg/ssh
+ssh_key=~/.ssh/backupserver
+ssh_user=${USER}
+config_content=$(cat <<-END
+Host backupserver
+	Host	${BACKUP_SERVER}
+	IdentityFile ${ssh_key}
+END
+)
+
+# create custom ssh dir
+mkdir -p -m 700 ${custom_ssh_dir}
+printf "%s\n" "${config_content}" > "${custom_ssh_dir}/config"
+chmod 0644 "${custom_ssh_dir}/config"
+
+# setup ssh keys and copy key to server
+ssh-keygen -t ed25519 -f "${ssh_key}" -q -N ""
+chmod 600 ${ssh_key}
+eval "$(ssh-agent -s)"
+ssh-add ${ssh_key}
+ssh-copy-id -i ${ssh_key} "${ssh_user}@${BACKUP_SERVER}"
+
+
+#ssh -i ~/.ssh/mykey user@host
+#rsync -e "ssh -F /path/to/custom_ssh_config" ./backups user@remote:/destination

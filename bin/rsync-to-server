@@ -1,0 +1,18 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+
+readonly script_path="$(realpath "$0")"
+readonly script_name="$(basename "${script_path}")"
+readonly script_dir="$(dirname "${script_path}")"
+readonly project_root=$(dirname "${script_dir}")
+
+
+env_file="${project_root}/.env"
+ssh_config="${project_root}/cfg/ssh/config"
+local_backup_dir="${project_root}/backups"
+
+source ${env_file}
+rsync -av -e "ssh -F ${ssh_config}" \
+    "${local_backup_dir}" "${USER}@${BACKUP_SERVER}:${REMOTE_BACKUP_DIR}"

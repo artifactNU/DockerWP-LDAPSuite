@@ -1,0 +1,114 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.2.0
+    container_name: DWLS-mysql
+    ports:
+      - 3306:3306
+    environment:
+      TZ: Europe/Stockholm
+      MYSQL_USER: dbadmin
+      MYSQL_DATABASE: wordpress
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    volumes:
+      - DWLS-mysql:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+    hostname: mysql-server
+    
+
+  adminer:
+    depends_on:
+      - mysql
+    image: adminer
+    container_name: DWLS-adminer
+    ports:
+      - 8080:8080
+    environment:
+      - TZ=Europe/Stockholm
+      - ADMINER_DEFAULT_SERVER=mysql
+    hostname: adminer-server
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+  wordpress:
+    depends_on:
+      - mysql
+    build:
+      context: .
+      dockerfile: ./Dockerfile.wordpress
+    image: DWLS/wordpress:latest
+    container_name: DWLS-wordpress
+    restart: always
+    ports:
+      - 80:80
+    environment:
+      TZ: Europe/Stockholm
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_USER: dbadmin
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD}
+      WORDPRESS_DB_NAME: wordpress
+    hostname: wordpress-server
+    volumes:
+      - DWLS-wordpress:/var/www/html
+      - /etc/localtime:/etc/localtime:ro
+
+  ldap:
+    image: osixia/openldap
+    container_name: DWLS-openldap
+    environment:
+      TZ: Europe/Stockholm
+      LDAP_ORGANISATION: example
+      LDAP_DOMAIN: example.com
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+    ports:
+      - 389:389
+      - 636:636
+    volumes:
+      - DWLS-ldap-data:/var/lib/ldap
+      - DWLS-ldap-config:/etc/ldap/slapd.d
+      - ./src/ldap:/usr/src/app
+      - /etc/localtime:/etc/localtime:ro
+    
+
+  phpldapadmin:
+    image: osixia/phpldapadmin
+    container_name: DWLS-phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: ldap
+      PHPLDAPADMIN_HTTPS: false
+    ports:
+      - 8081:80
+    depends_on:
+      - ldap
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+  alpine:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.alpine
+    image: DWLS/alpine
+    container_name: DWLS-alpine
+    hostname: alpine
+    user: root
+    volumes:
+      - .:/usr/src/app
+      - /etc/localtime:/etc/localtime:ro
+      - DWLS-wordpress:/DWLS-wordpress
+      - DWLS-mysql:/DWLS-mysql
+      - DWLS-ldap-data:/DWLS-ldap-data
+      - DWLS-ldap-config:/DWLS-ldap-config
+    working_dir: /usr/src/app
+    
+
+volumes:
+  DWLS-wordpress:
+    name: DWLS-wordpress
+  DWLS-mysql:
+    name: DWLS-mysql
+  DWLS-ldap-data:
+    name: DWLS-ldap-data
+  DWLS-ldap-config:
+    name: DWLS-ldap-config

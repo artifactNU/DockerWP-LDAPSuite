@@ -1,0 +1,135 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+readonly script_path=$(realpath "$0")
+readonly script_name=$(basename "${script_path}")
+readonly script_dir=$(dirname "${script_path}")
+
+all_volumes=(DWLS-ldap-data DWLS-ldap-config DWLS-mysql DWLS-wordpress)
+affected_volumes=()
+
+
+
+function print_affected_volumes() {
+	
+	if [[ ${affected_volumes[*]} =~ "all" ]];then
+		affected_volumes=("${all_volumes[@]}")
+	fi
+
+	for volume in "${affected_volumes[@]}";do
+		echo "${volume}"
+	done
+}
+
+
+
+function help() {
+    usage=$(cat <<-END
+		Usage:
+			${script_name} [-h|--help] [-v|--volume VOLUME] BACKUP_DATE
+			-h, --help:    Display this help and exit
+			-v, --volume:  Volume to restore (default all).
+							Valid values are: all, ldap, mysql, wordpress
+
+			BACKUP_DATE:  Date of the backup to restore from (%Y%m%d_%H%M%S)
+
+		Examples:
+			Restore all docker volumes:	${script_name} 20240126_150603" 
+			Restore mysql wordpress volume:	${script_name} -v wordpress
+	END
+	)
+	echo "${usage}"
+}
+
+
+function prompt_user() {
+	prompt_msg=$(cat <<-END
+		============================================================
+		WARNING!
+		============================================================
+		This will completely replace the content in the following
+		docker volumes:
+
+		$(print_affected_volumes)
+
+		All current data in the volume/volumes will be lost. Are you
+		sure that you want to continue with this operation (yes/no)?  
+		------------------------------------------------------------
+		Answer:
+	END
+	)
+	read -p "$prompt_msg " answer
+}
+
+function parse_answer() {
+	case "$answer" in
+		y|yes|Y|YES|Yes)
+			return
+			;;
+		n|no|N|NO|No)
+			exit 0
+			;;
+		*)
+			echo "Invalid answer"
+			exit 1
+			;;
+	esac
+}
+
+function restore_from_backup() {
+	for volume in "${affected_volumes[@]}";do
+		cp -r $tmp_dir/$volume/* /$volume
+	done
+}
+
+function create_tmp_dir() {
+	tmp_dir=$(mktemp -p /tmp -d)
+}
+
+function extract_backup() {
+	create_tmp_dir
+	for volume in "${affected_volumes[@]}";do
+		fpath="${script_dir}/../backups/${volume}/${backup_date}/${volume}.tar.gz"
+		tar -zxvf "$fpath" -C "$tmp_dir"
+	done
+}
+
+# process/validate script args and flags
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-h | --help)
+		help
+		exit 0
+		;;
+	-v | --volume)
+		affected_volumes+=("$1")
+		shift
+		;;
+	-*)
+		echo "Invalid_option $1"
+		help
+		exit 1
+		;;
+	*)
+		backup_date="$1"
+		break
+		;;
+	esac
+done
+
+# remove all other occurences if "all" has been specified
+if [[ ${affected_volumes[*]} =~ "all" ]]; then
+	affected_volumes=("${all_volumes[@]}")
+fi
+
+# default to "all" volumes if no volume options was given
+if [[ -z "${affected_volumes[*]}" ]]; then
+    affected_volumes=("${all_volumes[@]}")
+fi
+
+
+prompt_user
+parse_answer
+extract_backup
+restore_from_backup

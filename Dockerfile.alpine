@@ -1,0 +1,8 @@
+FROM alpine:latest
+
+ENV APK_DEPS \
+    bash
+
+RUN apk update && apk add ${APK_DEPS}
+
+

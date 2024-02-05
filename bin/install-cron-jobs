@@ -1,0 +1,48 @@
+#!/bin/bash
+set -eu
+set -o pipefail
+
+readonly script_path="$(realpath "$0")"
+readonly script_name="$(basename "${script_path}")"
+readonly script_dir="$(dirname "${script_path}")"
+readonly makefile_path=$(dirname "${script_dir}")
+
+
+function escape_chars(){
+    local job=$1
+
+    # escape * and / in job string
+    job=$(echo "${job}" | sed 's/[*\/]/\\&/g')
+    echo ${job}
+}
+
+function job_exists() {
+    local job=$(escape_chars "$1")
+    
+    # job exists
+    if crontab -l | grep -Eq "^\s*${job}"; then
+        echo true
+    else
+        echo false
+    fi
+}
+
+
+function append_job(){
+    local job="$1"
+    (crontab -l; echo "${job}") | crontab -
+    echo "Installed cronjob: $job"
+}
+
+
+function install_cron_job() {
+    local job="$1"
+
+    if [[ $(job_exists "${job}") == true ]]; then
+        echo "Skipped cronjob install (already exist): ${job}"
+    else
+        append_job "${job}"
+    fi
+}
+
+install_cron_job "* * * * * make -C ${makefile_path} backup-and-rsync"

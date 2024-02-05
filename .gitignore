@@ -1,0 +1,4 @@
+cfg/ssh/config
+*.tar
+*.gz
+password.env
